@@ -3,6 +3,7 @@
 
 sources for the 2020 [sound campus](https://sound-campus.itch.io/metaverse) performance "merge and dissolve".
 
+![](_assets/Arscatalogie.jpg)
 
 ## Context
 
@@ -16,6 +17,22 @@ Hence, new audio processing strategies need to be conceived while attempts to tr
 ## Contributions
 
 The performance is a collaboration between Thomas Grill, Till Bovermann and Kathrin Hunze. So far, Till Bovermann provided his performance system source code here.
+
+### Till's system
+
+![](_assets/merge_dissolve_till.jpg)
+
+#### Hardware
+
++ 192kHz-capable interface (here, RME Babyface) with 
+    + `> 2` analog inputs, 
+    + `> 4` analog outputs, 
+    + `> 2` SPDIF inputs (optical), 
+    + `> 2` SPDIF outputs (optical)
++ Monome Grid 128
++ Computer running 
+    + [SuperCollider](http://supercollider.github.io) 
+    + [faust](http://faust.grame.fr) (at compile-time)
 
 ## Acknowledgements
 
