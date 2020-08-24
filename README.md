@@ -22,7 +22,7 @@ The performance is a collaboration between Thomas Grill, Till Bovermann and Kath
 
 ![](_assets/merge_dissolve_till.jpg)
 
-#### Hardware
+#### Tools
 
 + 192kHz-capable interface (here, RME Babyface) with 
     + `> 2` analog inputs, 
@@ -33,6 +33,12 @@ The performance is a collaboration between Thomas Grill, Till Bovermann and Kath
 + Computer running 
     + [SuperCollider](http://supercollider.github.io) 
     + [faust](http://faust.grame.fr) (at compile-time)
++ faust libraries 
+    + [faust-sc](https://github.com/tai-studio/faust-sc)
+    + [bitDSP-faust](https://github.com/rottingsounds/bitDSP-faust)
++ SuperCollider extention
+    * [MonoM](https://github.com/catfact/monom) for accessing Monome Grid controller
+* [serialOSC](https://github.com/monome/serialosc) (setup instructions [https://monome.org/docs/serialosc/setup/]) 
 
 ## Acknowledgements
 

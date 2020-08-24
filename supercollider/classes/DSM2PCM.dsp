@@ -26,4 +26,4 @@ freq = hslider("freq", 100, 100, 192000, 0);
 // The low-pass resolution of the coefficients sets the bitdepth
 // The low-pass order determines the accuracy in the noise removal
 // process = fi.lowpass(8, ma.SR / downsample_factor);
-process = fi.lowpass(16, freq);
+process = fi.lowpass(8, freq);
