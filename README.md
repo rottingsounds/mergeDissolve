@@ -6,7 +6,7 @@ sources for the 2020 [sound campus](https://sound-campus.itch.io/metaverse) perf
 
 ## Context
 
-We have been investigating [1-bit audio](http://www.sonicstudio.com/pdf/papers/1bitOverview.pdf), a representation of digital sound where each temporal frame carries only 1 bit of information, but at a much higher sample rate (typically $>=$ 3 MHz) than at the standard PCM representation. 
+We have been investigating [1-bit audio](http://www.sonicstudio.com/pdf/papers/1bitOverview.pdf), a representation of digital sound where each temporal frame carries only 1 bit of information, but at a much higher sample rate (typically `>= 3 MHz`) than at the standard PCM representation. 
 The actually perceivable audio content is embedded in a mass of ultrasonic dithering noise.
 An interesting aspect of this format is that the electrical bit-stream can simply be played over a normal amplifier/loudspeaker combination yielding the analog sound equivalent of the sonic information embedded in the bit-stream. 
 The 1-bit-audio format therefore bridges the analog and the digital audio domains, having aspects of both worlds.
