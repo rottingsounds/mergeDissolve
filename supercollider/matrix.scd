@@ -2,11 +2,13 @@
 // ServerOptions.devices
 /*
 s.queryAllNodes
+Server.killAll
 // */
 
 
 (
 s.options.device = "Babyface (23181487)";
+s.options.memSize = 16*8192;
 s.options.sampleRate = 192000;
 s.options.numOutputBusChannels = 14;
 s.options.numInputBusChannels = 12;
@@ -19,6 +21,8 @@ s.waitForBoot{
 	q.monome = MonoM(\monome, 90).useDevice(0);
 
 
+	q.mapFadeTime = 1;
+	q.efxFadeTime = 5;
 
 	q.thomasInIdx = 2;
 	q.thomasOutIdx = 4;
@@ -67,6 +71,12 @@ s.waitForBoot{
 	}).add;
 
 
+
+	SynthDef(\map1_xfade, {|from = 0, to = 2, gate = 1, fadeTime = 1|
+		var xfade = Env.asr(fadeTime, 1, fadeTime, 1).kr(2, gate);
+		Out.ar(to, In.ar(from, 1) * xfade);
+	}).add;
+
 	SynthDef(\map2_dsm, {|from = 0, to = 2|
 		var input = In.ar(from, 2);
 		var fx = DSM2.ar(input, \bipolar);
@@ -79,7 +89,7 @@ s.waitForBoot{
 		var input = In.ar(from, 2);
 		var lpFreq = 24000; // nyquist of 48k
 		// var fx = LPF.ar(input, lpFreq);
-		var fx = DSM2PCM.ar(input.clip(-1, 1), lpFreq);
+		var fx = LeakDC.ar(DSM2PCM.ar(input.clip(-1, 1), lpFreq));
 
 		Out.ar(to, fx);
 	}).add;
@@ -91,7 +101,7 @@ s.waitForBoot{
 	}).add;
 
 	(
-		SynthDef(\delayFX, {|in1, in2|
+		SynthDef(\delayFX, {|in1, in2, gate = 1, fadeTime = 1|
 			var frame = 2048;
 			var rFrame = frame.reciprocal;
 			var rSR = s.sampleRate.reciprocal;
@@ -99,100 +109,128 @@ s.waitForBoot{
 
 			var input1 = In.ar(in1);
 			var input2 = In.ar(in2);
+			var xfade = Env.asr(fadeTime, 1, fadeTime, 1).kr(2, gate);
 
 			// the louder, the less delay
-			var dt = RunningSum.ar(input2 > 0, frame) * rFrame * maxDelay; // ensure values between 0..maxDelay
-			ReplaceOut.ar(in1, DelayN.ar(input1, maxDelay, dt));
+			// var dt = RunningSum.ar(input2 > 0, frame) * rFrame * maxDelay; // ensure values between 0..maxDelay
+			var dt = RMS.ar(input2 > 0) * rFrame * maxDelay; // ensure values between 0..maxDelay
+			dt = Line.kr(0, 1, 10) * dt;
+
+			// dt.poll;
+
+			XOut.ar(in1, xfade, DelayN.ar(input1, maxDelay, dt.lag(0.01)));
 		}).add;
 
-		SynthDef(\delayFX_inv, {|in1, in2|
+		SynthDef(\delayFX_inv, {|in1, in2, gate = 1, fadeTime = 1|
 			var frame = 2048;
 			var rFrame = frame.reciprocal;
 			var rSR = s.sampleRate.reciprocal;
 			var maxDelay = 1;
 
-			var input1 = In.ar(in1);
-			var input2 = In.ar(in2);
+			var input1 = In.ar(in1) > 0;
+			var input2 = In.ar(in2) > 0;
 
+			var xfade = Env.asr(fadeTime, 1, fadeTime, 1).kr(2, gate);
 			// the louder, the less delay
 			var dt = maxDelay - (RunningSum.ar(input2 > 0, frame) * rFrame * maxDelay); // ensure values between 0..maxDelay
-			ReplaceOut.ar(in1, DelayN.ar(input1, maxDelay, dt));
+			dt = Line.kr(0, 1, 10) * dt;
+
+			// ReplaceOut.ar(in1, DelayN.ar(input1, maxDelay, dt.lag(0.01)));
+			XOut.ar(in1, xfade, DelayN.ar(input1, maxDelay, dt.lag(0.01)));
 		}).add;
 
 
-		SynthDef(\bitDelayFX, {|in1, in2|
+		SynthDef(\bitDelayFX, {|in1, in2, gate = 1, fadeTime = 1|
 			var frame = 4069;
 			var rFrame = frame.reciprocal;
 			var rSR = s.sampleRate.reciprocal;
 			var maxDelay = rSR * frame;
 
-			var input1 = In.ar(in1) > 0.5;
-			var input2 = In.ar(in2) > 0.5;
+			var input1 = In.ar(in1) > 0;
+			var input2 = In.ar(in2) > 0;
 
+			var xfade = Env.asr(fadeTime, 1, fadeTime, 1).kr(2, gate);
 			// the louder, the more delay
 			var dt = RunningSum.ar(input2 > 0, frame) * rFrame * maxDelay; // ensure values between 0..maxDelay
-			ReplaceOut.ar(in1, DelayN.ar(input1, maxDelay, dt));
+
+			dt = xfade * dt;
+			//ReplaceOut.ar(in1, DelayN.ar(input1, maxDelay, dt.lag(0.01)));
+			XOut.ar(in1, xfade, DelayN.ar(input1, maxDelay, dt.lag(0.01)));
 		}).add;
 
-		SynthDef(\bitDelayFX_inv, {|in1, in2|
+		SynthDef(\bitDelayFX_inv, {|in1, in2, gate = 1, fadeTime = 1|
 			var frame = 4069;
 			var rFrame = frame.reciprocal;
 			var rSR = s.sampleRate.reciprocal;
 			var maxDelay = rSR * frame;
 
-			var input1 = In.ar(in1);
-			var input2 = In.ar(in2);
+			var input1 = In.ar(in1) > 0;
+			var input2 = In.ar(in2) > 0;
 
+			var xfade = Env.asr(fadeTime, 1, fadeTime, 1).kr(2, gate);
 			// the louder, the more delay
 			var dt = maxDelay - (RunningSum.ar(input2 > 0, frame) * rFrame * maxDelay); // ensure values between 0..maxDelay
-			ReplaceOut.ar(in1, DelayN.ar(input1, maxDelay, dt));
+			dt = Line.kr(0, 1, 1) * dt;
+			// ReplaceOut.ar(in1, DelayN.ar(input1, maxDelay, dt.lag(0.01)));
+			XOut.ar(in1, xfade, DelayN.ar(input1, maxDelay, dt.lag(0.01)));
 		}).add;
 
 
-		SynthDef(\andFX, {|in1, in2|
+		SynthDef(\andFX, {|in1, in2, gate = 1, fadeTime = 1|
 			var input1 = In.ar(in1) > 0;
 			var input2 = In.ar(in2) > 0;
 			var fx = (input1 + input2) > 1;
-			ReplaceOut.ar(in1, fx * 2 - 1)
+			// ReplaceOut.ar(in1, fx * 2 - 1)
+			var xfade = Env.asr(fadeTime, 1, fadeTime, 1).kr(2, gate);
+			XOut.ar(in1, xfade, fx * 2 - 1);
 		}).add;
 
-		SynthDef(\orFX, {|in1, in2|
+		SynthDef(\orFX, {|in1, in2, gate = 1, fadeTime = 1|
 			var input1 = In.ar(in1) > 0;
 			var input2 = In.ar(in2) > 0;
 			var fx = (input1 + input2) > 0;
-			ReplaceOut.ar(in1, fx * 2 - 1)
+			// ReplaceOut.ar(in1, fx * 2 - 1)
+			var xfade = Env.asr(fadeTime, 1, fadeTime, 1).kr(2, gate);
+			XOut.ar(in1, xfade, fx * 2 - 1);
 		}).add;
 
 
-		SynthDef(\rotFX, {|in1, in2|
+		SynthDef(\rotFX, {|in1, in2, gate = 1, fadeTime = 1|
 			var input1 = In.ar(in1) > 0;
 			var input2 = In.ar(in2) > 0;
 			var amount = RunningSum.ar(input2, 1024) * 1024.reciprocal; // ensure values between 0..1
 			var noise = WhiteNoise.ar(0.5, 0.5);
 
-			var fx = Select.ar(noise > amount, [input1,  input1.neg]);
-			ReplaceOut.ar(in1, fx)
+			var fx = Select.ar(noise > (amount * 0.01) , [input1,  input1.neg]);
+
+			var xfade = Env.asr(fadeTime, 1, fadeTime, 1).kr(2, gate);
+			XOut.ar(in1, xfade, fx);
+
+			// ReplaceOut.ar(in1, fx)
 		}).add;
 
-		SynthDef(\rotFX_inv, {|in1, in2|
+		SynthDef(\rotFX_inv, {|in1, in2, gate = 1, fadeTime = 1|
 			var input1 = In.ar(in1) > 0;
 			var input2 = In.ar(in2) > 0;
 			var amount = 1 - (RunningSum.ar(input2, 1024) * 1024.reciprocal); // ensure values between 0..1
 			var noise = WhiteNoise.ar(0.5, 0.5);
 
-			var fx = Select.ar(noise > amount, [input1,  input1.neg]);
-			ReplaceOut.ar(in1, fx)
+			var fx = Select.ar(noise > (amount * 0.01), [input1,  input1.neg]);
+
+			var xfade = Env.asr(fadeTime, 1, fadeTime, 1).kr(2, gate);
+			XOut.ar(in1, xfade, fx);
+			// ReplaceOut.ar(in1, fx)
 		}).add;
 
 		q.synthNames = ();
-		q.synthNames[0] = \delayFX_inv;
+		q.synthNames[0] = \bitDelayFX;
 		q.synthNames[1] = \bitDelayFX_inv;
-		q.synthNames[2] = \andFX;
-		q.synthNames[3] = \orFX;
-		q.synthNames[4] = \rotFX_inv;
-		q.synthNames[5] = \bitDelayFX;
-		q.synthNames[6] = \delayFX;
-		q.synthNames[7] = \rotFX;
+		q.synthNames[2] = \delayFX;
+		q.synthNames[3] = \delayFX_inv;
+		q.synthNames[4] = \rotFX;
+		q.synthNames[5] = \rotFX_inv;
+		q.synthNames[6] = \andFX;
+		q.synthNames[7] = \orFX;
 	);
 
 	s.sync;
@@ -293,7 +331,7 @@ q.efxChains.notNil.if{
 q.efxChains = nil!8!8;
 
 
-
+(
 OSCdef.newMatching(\matrix, {|msg, time, addr, recvPort|
 	var name, r, c, v;
 	#name, c, r, v = msg;
@@ -308,14 +346,14 @@ OSCdef.newMatching(\matrix, {|msg, time, addr, recvPort|
 
 			(q.matrix[c][r].notNil).if({
 				 // free synth
-				q.matrix[c][r].free;
+				q.matrix[c][r].set(\gate, 0);
 				q.matrix[c][r] = nil;
 				// q.monome.levset(c, r+8, q.matrixLoVal)
 				q.updateMatrixKey(c, r, false);
 			}, {
 				// create synth
 				[\map, \from, r, \to, c].postln;
-				q.matrix[c][r] = Synth(\map1, [\from, q.input.all.index + c, \to, q.output.all.index + r], q.matrixGroup);
+				q.matrix[c][r] = Synth(\map1_xfade, [\from, q.input.all.index + c, \to, q.output.all.index + r, \fadeTime, q.mapFadeTime], q.matrixGroup);
 				// q.monome.levset(c, r+8, q.matrixHiVal)
 				q.updateMatrixKey(c, r, true);
 			});
@@ -323,7 +361,7 @@ OSCdef.newMatching(\matrix, {|msg, time, addr, recvPort|
 		// upper part:
 		// efx connections
 			(q.efxChains[c][r].notNil).if({
-				q.efxChains[c][r].free;
+				q.efxChains[c][r].set(\gate, 0);
 				q.efxChains[c][r] = nil;
 				// q.monome.levset(c, r, q.efxLoVal)
 				q.updateEfxKey(c, r, false);
@@ -331,7 +369,10 @@ OSCdef.newMatching(\matrix, {|msg, time, addr, recvPort|
 				var target = q.efxSubGroups[r];
 				var in1 = q.input.all.index + c;
 				var in2 = c.even.if({in1+1}, {in1-1}); // always pairs
-				q.efxChains[c][r] = Synth(q.synthNames[r], [\in1, in1, \in2, in2], target, \addToHead);
+
+				[q.synthNames[r], [\in1, in1 - q.input.all.index, \in2, in2- q.input.all.index]].postln;
+
+				q.efxChains[c][r] = Synth(q.synthNames[r], [\in1, in1, \in2, in2, \fadeTime, q.efxFadeTime], target, \addToHead);
 				// q.monome.levset(c, r, q.efxHiVal)
 				q.updateEfxKey(c, r, true);
 			});
@@ -339,6 +380,7 @@ OSCdef.newMatching(\matrix, {|msg, time, addr, recvPort|
 	});
 
 }, "/monome/grid/key");
+);
 )
 
 
@@ -347,18 +389,21 @@ Ndef(\inTest).clear
 (
 Ndef(\inTest, {
 	// Out.ar(q.input.all, Silent.ar + ({|i|i+1}!8 / 10))
+	var freqs = {LFNoise1.kr(rand(0.1, 0.5)).exprange(*([1.0, 4.0] * rrand(10.0, 100)))}!8;
 	var src = [
 		Silent.ar, // LFPulse.ar(100), // efxFB
 		Silent.ar, // LFPulse.ar(230), // efxFB
-		WhiteNoise.ar.range(0, 1) > 0.5, // thomas
-		SinOsc.ar(230), // thomas
-		SinOsc.ar(140), // kathrin
-		SinOsc.ar(15), // kathrin
+		SinOsc.ar(freqs[2]), // thomas
+		SinOsc.ar(freqs[3]), // thomas
+		SinOsc.ar(freqs[4]), // kathrin
+		SinOsc.ar(freqs[5]), // kathrin
 		Silent.ar, // LFPulse.ar(1), //local
 		Silent.ar, // LFPulse.ar(15, 0, 0.12), // local
 	];
 
-	DSM2PCM.ar(src * 2 - 1, 12000)
+	src = src * ({LFNoise1.kr(rrand(0.05, 0.4)).range(0, 1)}!8);
+
+	DSM2.ar(src, \bipolar)
 })
 )
 
