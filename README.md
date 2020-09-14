@@ -20,7 +20,7 @@ The performance is a collaboration between Thomas Grill, Till Bovermann and Kath
 
 ### Till's system
 
-![](_assets/linz 2020 till.png)
+![](_assets/linz_2020_till.png)
 
 #### Tools
 
