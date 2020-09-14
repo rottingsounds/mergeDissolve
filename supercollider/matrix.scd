@@ -28,14 +28,19 @@ s.waitForBoot{
 	q.monome = MonoM(\monome, 90).useDevice(0);
 
 
-	q.mapFadeTime = 2;
+	q.mapFadeTime = 10;
 	q.efxFadeTime = 5;
 
 	q.thomasInIdx = 2;
 	q.thomasOutIdx = 4;
 
+	q.addrThomas = NetAddr("192.168.0.100", 57088);
+	q.addrKathrin = NetAddr("192.168.0.101", 8000);
+	q.addrTill = NetAddr("192.168.0.102", 57120);
 
-		////////////////////// SynthDefs ////////////////////////
+
+
+	////////////////////// SynthDefs ////////////////////////
 	// efx
 	(thisProcess.nowExecutingPath.dirname +/+ "efx.scd").load;
 
@@ -45,45 +50,53 @@ s.waitForBoot{
 
 	// routing
 
-	[1, 2, 4, 8].do{|i|
-		SynthDef("map"++i, {|from = 0, to = 2|
-			Out.ar(to, In.ar(from, i));
-		}).add;
+	(
+		[1, 2, 4, 8].do{|i|
+			SynthDef("map"++i, {|from = 0, to = 2|
+				Out.ar(to, In.ar(from, i));
+			}).add;
 
-		SynthDef("map%_xfade".format(i), {|from = 0, to = 2, gate = 1, fadeTime = 1|
-			var xfade = Env.asr(fadeTime, 0.75, fadeTime, 1).kr(2, gate);
-			var oldSignal = In.ar(to, i);
-			var newSignal = In.ar(from, i);
-			newSignal = DSMAdd.ar(oldSignal, newSignal);
-			XOut.ar(to, xfade, newSignal);
 
-			// Out.ar(to, In.ar(from, i) * xfade);
-		}).add;
+			// Env([0, 0.25, 0.5, 0.75, 1, 0.75, 0.5, 0.25, 0], (3 * 0.5)!8, curve: [4, 3, 1, -1], releaseNode:2).plot
+			SynthDef("map%_xfade".format(i), {|from = 0, to = 2, gate = 1, fadeTime = 1|
+				// var xfade = Env.asr(fadeTime, 0.75, fadeTime, -1).kr(2, gate);
+				var xfade = Env.asr(fadeTime, 1, fadeTime, \sine).kr(2, gate);
 
-		SynthDef("map%_dsm".format(i), {|from = 0, to = 2|
-			var input = In.ar(from, i);
-			var fx = DSM2.ar(input, \bipolar);
+				// Env.asr(1, 1, 1, [\welch]).plot
 
-			Out.ar(to, fx);
-		}).add;
 
-		SynthDef("map%_lp".format(i), {|from = 0, to = 2, amp = 1, lpFreq = 20000|
-			var input = In.ar(from, i);
-			// var lpFreq = 24000; // nyquist of 48k
-			// var fx = LPF.ar(input, lpFreq);
-			var fx = LeakDC.ar(DSM2PCM.ar(input.clip(-1, 1), lpFreq));
+				var oldSignal = In.ar(to, i);
+				var newSignal = In.ar(from, i);
+				newSignal = DSMAdd.ar(oldSignal, newSignal);
+				XOut.ar(to, xfade, newSignal);
 
-			Out.ar(to, fx * amp);
-		}).add;
+				// Out.ar(to, In.ar(from, i) * xfade);
+			}).add;
 
-		// SynthDef("map%_fb".format(i), {|from = 0, to = 2|
-		// 	var input = InFeedback.ar(from, i) > 0.5;
-		// 	// TODO: might get really big... best to limit somewhere?
-		// 	Out.ar(to, input);
-		// }).add;
+			SynthDef("map%_dsm".format(i), {|from = 0, to = 2|
+				var input = In.ar(from, i);
+				var fx = DSM2.ar(input, \bipolar);
 
-	};
+				Out.ar(to, fx);
+			}).add;
 
+			SynthDef("map%_lp".format(i), {|from = 0, to = 2, amp = 1, lpFreq = 20000|
+				var input = In.ar(from, i);
+				// var lpFreq = 24000; // nyquist of 48k
+				// var fx = LPF.ar(input, lpFreq);
+				var fx = LeakDC.ar(DSM2PCM.ar(input.clip(-1, 1), lpFreq));
+
+				Out.ar(to, fx * amp);
+			}).add;
+
+			// SynthDef("map%_fb".format(i), {|from = 0, to = 2|
+			// 	var input = InFeedback.ar(from, i) > 0.5;
+			// 	// TODO: might get really big... best to limit somewhere?
+			// 	Out.ar(to, input);
+			// }).add;
+
+		};
+	);
 
 
 	(
@@ -94,7 +107,7 @@ s.waitForBoot{
 			var pcm8chan = LeakDC.ar(DSM2PCM.ar(input.clip(-1, 1), lpFreq));
 
 			// 4 2chans with volume
-			var srcs = pcm8chan.clump(2) * [0.1, 0.3, 0.5, 1];
+			var srcs = pcm8chan.clump(2) * [0.05, 0.1, 0.3, 0.7];
 
 
 			# amps, brightnesses, spreads, turns = srcs.collect{|src|
@@ -105,14 +118,14 @@ s.waitForBoot{
 				// br = A2K.kr(br) * (SampleRate.ir*0.5).reciprocal; // in case of fire
 				br = br * (SampleRate.ir*0.5).reciprocal * 5;
 				// br = max(min(br.log10, 0)/3+1, 0);
-				br = br.clip(0, 1);
+				// br = LeakDC.ar(br.clip(0, 1), 0.99999);
 
 				amp = Amplitude.ar(in);
 				// amp = A2K.kr(amp); // in case of fire
 				amp = (amp*8).tanh;
 
-				spread = 1-amp.lag(0.1, 1);
-				turn = br * 2; // 2 turns
+				spread = 1-amp.lag(2, 5);
+				turn = br.lag(7, 0.1) * 2; // 2 turns
 
 				[amp, br, spread, turn];
 			}.flop;
@@ -120,7 +133,7 @@ s.waitForBoot{
 
 			// brightnesses.poll;
 			srcs = srcs.collect{|src, i|
-				SplayAz.ar(4, src, spreads[i], center: turns[i])
+				SplayAz.ar(4, src, spreads[i], center: turns[i], orientation: i)
 			};
 
 			balances = [[0, 2], [1, 3]].collect{|ids|
@@ -137,22 +150,23 @@ s.waitForBoot{
 
 			SendReply.kr(Impulse.kr(trigFreq),
 				cmdName: '/analysis',
-				values: [amps, brightnesses].flop.flat ++ balances
+				values: [amps, brightnesses].flop.flat.clip(0, 1) ++ balances
 			);
 
 			// collapse channels
 			srcs = srcs.sum;
 
-			Out.ar(to, srcs * amp);
+			Out.ar(to, srcs * VarLag.kr(amp, 7, start:0));
 		}).add;
 	);
 
 	/*
+	q.mappers.spatialMixer.set(\trigFreq, 20);
 	q.mappers.spatialMixer.free;
 	q.mappers.spatialMixer =
-		Synth(\map8to4_spatialLp, [
-			\from, q.matrixOutBus.all,
-			\to, q.hwLocalOutBus
+	Synth(\map8to4_spatialLp, [
+	\from, q.matrixOutBus.all,
+	\to, q.hwLocalOutBus
 	], q.outGroup);
 	*/
 
@@ -220,10 +234,14 @@ s.waitForBoot{
 		Synth(\map2, [
 			\from, q.hwThomasInBus.index,
 			\to, q.efxBus.thomas.index
-		// ], q.mappers.efxFB, \addAfter)
+			// ], q.mappers.efxFB, \addAfter)
 		], q.inGroup)
 	};
 
+	/*
+	q.mappers.kathrinIn.free
+	q.mappers.kathrinIn = nil
+	*/
 	q.mappers.kathrinIn = q.mappers.kathrinIn ?? {
 		Synth(\sonify2_4, [
 			\to, q.efxBus.kathrin.index,
@@ -231,6 +249,10 @@ s.waitForBoot{
 		], q.inGroup)
 	};
 
+	/*
+	q.mappers.localIn.free
+	q.mappers.localIn = nil
+	*/
 	q.mappers.localIn = q.mappers.localIn ?? {
 		Synth(\sonify4_4, [
 			\to, q.efxBus.local.index,
@@ -248,7 +270,8 @@ s.waitForBoot{
 		], q.outGroup)
 	};
 
-	q.mappers.thomasOut = q.mappers.thomasOut ?? {Synth(\map2, [\from, q.matrixOutBus.thomas.index, \to, q.hwThomasOutBus.index], q.outGroup)};
+//	q.mappers.thomasOut = nil;
+	q.mappers.thomasOut = q.mappers.thomasOut ?? {Synth(\map2_lp, [\from, q.matrixOutBus.thomas.index, \to, q.hwThomasOutBus.index], q.outGroup)};
 }
 )
 
@@ -377,21 +400,29 @@ OSCdef.newMatching(\matrix, {|msg, time, addr, recvPort|
 
 /////////////////////////////////////////////////////////
 
-q.mappers.kathrinIn
+q.mappers.kathrinIn.set(\seed, 246);
 
 q.mappers.localIn.setn(\params, [0.1, 0.4, 0.8, 0.9])
 
-q.mappers.localIn.set(\seed, 1234.rand)
+q.mappers.localIn.set(\seed, 1234234.rand.postln)
+
+
+q.mappers.localIn.set(\seed, 810491);
+q.mappers.localIn.set(\seed, 8101);
+q.mappers.localIn.set(\seed, 812);
+q.mappers.localIn.set(\seed, 811);
+q.mappers.localIn.set(\seed, 435711);
+q.mappers.localIn.set(\seed, 4351);
+q.mappers.localIn.set(\seed, 512817);
+1045463
 
 q.mappers.kathrinIn.setn(\params, {1.0}!4);
-q.mappers.localIn.setn(\params, {1.0}!4);
+q.mappers.localIn.setn(\params, {1.0.rand}!4);
 
 q.efxBus.all.scope
 
 q.matrixOutBus.all.scope
 q.hwLocalOutBus.scope
-Synth
-
 
 
 
@@ -408,9 +439,96 @@ q.efxBus.all.scope
 s.scope
 
 (
+// OSCdef(\listener).free
 OSCdef(\listener, {|msg|
-    var data = msg[3..];
-    data.postln;
-	// ~testNetAddr.sendMsg("data", data);
+	var data = msg[3..];
+	// data.postln;
+	q.addrKathrin.sendMsg("/data", *data);
 }, '/analysis');
+
+OSCdef(\fromKathrin, {|msg|
+	var data = msg[1..];
+	// data.postln;
+	// q.addrKathrin.sendMsg("data", data);
+
+	q.mappers.kathrinIn.setn(\params, data);
+
+}, '/from_unity');
+)
+
+
+
+OSCdef.trace(false)
+OSCdef.trace(true)
+
+
+
+
+q.mapFadeTime = 10;
+q.efxFadeTime = 5;
+q.mappers.spatialMixer.set(\amp, 0.1)
+
+
+
+(
+//1
+q.mappers.localIn.set(\seed, 812);
+q.mapFadeTime = 18;
+q.efxFadeTime = 18;
+q.mappers.spatialMixer.set(\amp, 0.3);
+)
+
+(
+//2
+q.mapFadeTime = 18;
+q.efxFadeTime = 4;
+q.mappers.spatialMixer.set(\amp, 0.5);
+)
+
+(
+//3
+q.mapFadeTime = 0;
+q.efxFadeTime = 4;
+q.mappers.spatialMixer.set(\amp, 0.3);
+)
+
+
+(
+//4
+q.mapFadeTime = 0;
+q.efxFadeTime = 0;
+q.mappers.spatialMixer.set(\amp, 0.6);
+)
+
+(
+//5
+q.mapFadeTime = 0;
+q.efxFadeTime = 10;
+q.mappers.spatialMixer.set(\amp, 0.8);
+)
+
+
+(
+//6
+q.mapFadeTime = 2;
+q.efxFadeTime = 10;
+q.mappers.spatialMixer.set(\amp, 0.4);
+)
+
+(
+q.mappers.localIn.set(\seed, 810491);
+
+//7
+q.mapFadeTime = 4;
+q.efxFadeTime = 18;
+q.mappers.spatialMixer.set(\amp, 0.8);
+)
+
+
+(
+q.win = Window(\perf, 400@200, false).front.decorate;
+
+EZSlider(q.win.view, 380@20, \mapTime, [0, 20].asSpec, {|me| q.mapFadeTime = me.value}, q.mapFadeTime);
+EZSlider(q.win.view, 380@20, \efxTime, [0, 20].asSpec, {|me| q.efxFadeTime = me.value}, q.efxFadeTime);
+EZSlider(q.win.view, 380@20, \amp, [0, 1].asSpec, {|me| q.mappers.spatialMixer.set(\amp, me.value)});
 )

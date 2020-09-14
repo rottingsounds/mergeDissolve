@@ -11,7 +11,7 @@
 			RandSeed.kr(trig, seed);
 
 			freqs = params.collect{|p|
-				TExpRand.kr(50, 1600, trig) * (1 + (0.03*p)); // almost static freqs
+				TExpRand.kr(25, 3200, trig) * (1 + (0.03*p)); // almost static freqs
 			};
 
 			// fixme: scramble should be re-seedable
@@ -34,7 +34,7 @@
 					LFPulse.ar(freq, 0, 0.3),
 					Impulse.ar(freq)
 				]);
-
+				// snd = snd  * LFPulse.kr(TRand.kr(Impulse.kr(0) + trig, 1, 10), 0, 0.1).range(0, 1);
 				snd * amp * AmpCompA.kr(freq, 50);
 
 			};
